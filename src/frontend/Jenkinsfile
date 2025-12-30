@@ -1,0 +1,55 @@
+pipeline {
+  agent any
+
+  environment {
+    IMAGE_NAME = "sunaodisha/ecommerce-frontend"
+    IMAGE_TAG  = "${BUILD_NUMBER}"
+    GITOPS_REPO = "https://github.com/sunaofficial/ecommerce-gitops.git"
+  }
+
+  stages {
+
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Build Docker Image') {
+      steps {
+        sh """
+          docker build -t ${IMAGE_NAME}:${IMAGE_TAG} src/frontend
+        """
+      }
+    }
+
+    stage('Push Image') {
+      steps {
+        withCredentials([usernamePassword(
+          credentialsId: 'docker-sant',
+          usernameVariable: 'DOCKER_USER',
+          passwordVariable: 'DOCKER_PASS'
+        )]) {
+          sh """
+            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+            docker push ${IMAGE_NAME}:${IMAGE_TAG}
+          """
+        }
+      }
+    }
+
+    stage('Update GitOps Repo') {
+      steps {
+        sh """
+          rm -rf ecommerce-gitops
+          git clone ${GITOPS_REPO}
+          sed -i 's|image:.*|image: ${IMAGE_NAME}:${IMAGE_TAG}|' ecommerce-gitops/frontend/deployment.yaml
+          cd ecommerce-gitops
+          git add .
+          git commit -m "Update frontend image to ${IMAGE_TAG}"
+          git push
+        """
+      }
+    }
+  }
+}
