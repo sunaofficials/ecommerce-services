@@ -39,17 +39,25 @@ pipeline {
     }
 
     stage('Update GitOps Repo') {
-      steps {
-        sh """
-          rm -rf ecommerce-gitops
-          git clone ${GITOPS_REPO}
-          sed -i 's|image:.*|image: ${IMAGE_NAME}:${IMAGE_TAG}|' ecommerce-gitops/frontend/deployment.yaml
-          cd ecommerce-gitops
-          git add .
-          git commit -m "Update frontend image to ${IMAGE_TAG}"
-          git push
-        """
-      }
+  steps {
+    withCredentials([usernamePassword(
+      credentialsId: 'github-sant',
+      usernameVariable: 'GIT_USER',
+      passwordVariable: 'GIT_PASS'
+    )]) {
+      sh """
+        rm -rf ecommerce-gitops
+
+        git clone https://${GIT_USER}:${GIT_PASS}@github.com/sunaofficials/ecommerce-gitops.git
+        cd ecommerce-gitops
+
+        sed -i 's|image:.*|image: ${IMAGE_NAME}:${IMAGE_TAG}|' frontend/deployment.yaml
+
+        git add frontend/deployment.yaml
+        git commit -m "Update frontend image to ${IMAGE_TAG}"
+        git push
+      """
     }
   }
+}
 }
